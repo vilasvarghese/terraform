@@ -1,0 +1,123 @@
+Provider example (provider.tf.json)
+
+{
+    "provider": {
+        "openstack": { #In open stack
+            "user_name": "vilas",
+            "tenant_name": "varghese",
+            "password": "mypwd",
+            "auth_url": "http://openstack.domain.net:5000/v2.0"
+        }
+    }
+}
+
+
+Variables vars.tf.json
+{
+    "variable": {
+        "image": {
+            "default": "Ubuntu 14.04.3 LTS x64"
+        }
+    },
+    "variable": {
+        "flavor": {
+            "default": "m1.small"
+        }
+    },
+    "variable": {
+        "external_gateway": {
+            "default": "c842f32c-f583-4d6a-af34-73846790c2f5"
+        }
+    },
+    "variable": {
+        "key_pair": {
+            "default": "homelab"
+        }
+    },
+    "variable": {
+        "pool": {
+            "default": "ext-net-5"
+        }
+    }
+}
+
+
+Configuration file. (main.tf.json)
+{
+    "resource": {
+        "openstack_networking_network_v2": {
+            "tf-net": {
+                "name": "tf-net",
+                "admin_state_up": "true"
+            }
+        }
+    },
+    "resource": {
+        "openstack_networking_subnet_v2": {
+            "tf-subnet": {
+                "name": "tf-subnet",
+                "network_id": "${openstack_networking_network_v2.tf-net.id}",
+                "cidr": "192.168.200.0/24",
+                "ip_version": 4,
+                "dns_nameservers": [
+                    "8.8.8.8",
+                    "8.8.4.4"
+                ]
+            }
+        }
+    },
+    "resource": {
+        "openstack_networking_router_v2": {
+            "tf-router": {
+                "name": "tf-router",
+                "admin_state_up": "true",
+                "external_gateway": "${var.external_gateway}"
+            }
+        }
+    },
+    "resource": {
+        "openstack_networking_router_interface_v2": {
+            "tf-router-iface": {
+                "router_id": "${openstack_networking_router_v2.tf-router.id}",
+                "subnet_id": "${openstack_networking_subnet_v2.tf-subnet.id}"
+            }
+        }
+    },
+    "resource": {
+        "openstack_compute_floatingip_v2": {
+            "tf-fip": {
+                "pool": "${var.pool}",
+                "depends_on": [
+                    "openstack_networking_router_interface_v2.tf-router-iface"
+                ]
+            }
+        }
+    },
+    "resource": {
+        "openstack_compute_instance_v2": {
+            "tf-instance": {
+                "name": "tf-instance",
+                "image_name": "${var.image}",
+                "flavor_name": "${var.flavor}",
+                "key_pair": "${var.key_pair}",
+                "floating_ip": "${openstack_compute_floatingip_v2.tf-fip.address}",
+                "security_groups": [
+                    "default",
+                    "basic-services"
+                ],
+                "network": {
+                    "uuid": "${openstack_networking_network_v2.tf-net.id}"
+                }
+            }
+        }
+    }
+}
+
+Output file example (output.tf.json)
+{
+    "output": {
+        "address": {
+            "value": "${openstack_compute_floatingip_v2.tf-fip.address}"
+        }
+    }
+}
